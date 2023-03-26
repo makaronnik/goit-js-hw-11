@@ -29,12 +29,14 @@ const scrollObserver = new IntersectionObserver(
     });
   },
   {
-    rootMargin: '0px 0px 200px 0px',
+    rootMargin: '0px 0px 300px 0px',
+    threshold: 0.1,
   }
 );
 
 let inputEmpty = true;
 let showedImages = 0;
+let totalHits = 0;
 
 refs.form.addEventListener('submit', onFormSubmit);
 refs.input.addEventListener('input', onInput);
@@ -74,6 +76,7 @@ function onFormSubmit(event) {
 
   refs.gallery.innerHTML = '';
   showedImages = 0;
+  totalHits = 0;
 
   const query = event.target.elements.searchQuery.value;
 
@@ -92,7 +95,9 @@ async function loadImages(query) {
       return;
     }
 
-    Notify.success(`'Hooray! We found ${data.totalHits} images.'`);
+    totalHits = data.totalHits;
+
+    Notify.success(`'Hooray! We found ${totalHits} images.'`);
 
     buildGallery(data);
 
@@ -102,7 +107,7 @@ async function loadImages(query) {
 
     showedImages = data.hits.length;
 
-    if (data.hits.length < data.totalHits) {
+    if (showedImages < totalHits) {
       refs.loader.classList.remove('loader--hidden');
       startObserver();
     }
@@ -115,19 +120,19 @@ async function loadMoreImages() {
   try {
     const data = await pixabay.loadNextImages();
 
-    appendGallery(data);
-
-    lightbox.refresh();
-
-    showedImages += data.hits.length;
-
-    if (showedImages >= data.totalHits) {
+    if (showedImages === totalHits) {
       refs.loader.classList.add('loader--hidden');
 
       stopObserver();
 
       Notify.info("We're sorry, but you've reached the end of search results.");
     }
+
+    appendGallery(data);
+
+    lightbox.refresh();
+
+    showedImages += data.hits.length;
   } catch (error) {
     console.error(error);
   }
