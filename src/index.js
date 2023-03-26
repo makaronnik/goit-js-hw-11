@@ -10,6 +10,7 @@ const refs = {
   input: document.querySelector('.search-form__input'),
   button: document.querySelector('.search-form__button'),
   gallery: document.querySelector('.gallery'),
+  loader: document.querySelector('.loader'),
 };
 
 const pixabay = new PixabayApi();
@@ -19,8 +20,21 @@ const lightbox = new SimpleLightbox('.gallery a', {
   captionPosition: 'bottom',
   captionDelay: 250,
 });
+const scrollObserver = new IntersectionObserver(
+  function (entries) {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        loadMoreImages();
+      }
+    });
+  },
+  {
+    rootMargin: '0px 0px 200px 0px',
+  }
+);
 
 let inputEmpty = true;
+let showedImages = 0;
 
 refs.form.addEventListener('submit', onFormSubmit);
 refs.input.addEventListener('input', onInput);
@@ -49,21 +63,26 @@ function unfocusButton() {
   refs.button.classList.remove('search-form__button--focus');
 }
 
-async function onFormSubmit(event) {
+function onFormSubmit(event) {
   event.preventDefault();
 
   if (inputEmpty) {
     return;
   }
 
+  stopObserver();
+
   refs.gallery.innerHTML = '';
+  showedImages = 0;
 
   const query = event.target.elements.searchQuery.value;
 
+  loadImages(query);
+}
+
+async function loadImages(query) {
   try {
     const data = await pixabay.loadImages(query);
-
-    console.dir(data);
 
     if (data.totalHits === 0) {
       Notify.failure(
@@ -74,10 +93,41 @@ async function onFormSubmit(event) {
     }
 
     Notify.success(`'Hooray! We found ${data.totalHits} images.'`);
+
     buildGallery(data);
+
     lightbox.refresh();
 
     setTimeout(unfocusButton, 500);
+
+    showedImages = data.hits.length;
+
+    if (data.hits.length < data.totalHits) {
+      refs.loader.classList.remove('loader--hidden');
+      startObserver();
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function loadMoreImages() {
+  try {
+    const data = await pixabay.loadNextImages();
+
+    appendGallery(data);
+
+    lightbox.refresh();
+
+    showedImages += data.hits.length;
+
+    if (showedImages >= data.totalHits) {
+      refs.loader.classList.add('loader--hidden');
+
+      stopObserver();
+
+      Notify.info("We're sorry, but you've reached the end of search results.");
+    }
   } catch (error) {
     console.error(error);
   }
@@ -87,4 +137,20 @@ function buildGallery(data) {
   const markup = builder.buildCards(data.hits);
 
   refs.gallery.innerHTML = markup;
+}
+
+function appendGallery(data) {
+  const markup = builder.buildCards(data.hits);
+
+  refs.gallery.insertAdjacentHTML('beforeend', markup);
+}
+
+function startObserver() {
+  setTimeout(function () {
+    scrollObserver.observe(refs.loader);
+  }, 1000);
+}
+
+function stopObserver() {
+  scrollObserver.unobserve(refs.loader);
 }
