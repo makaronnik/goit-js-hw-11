@@ -117,6 +117,7 @@ li {
 }
 
 .gallery__item {
+  max-width: 420px;
   flex-basis: 300px;
   flex-grow: 1;
 }
